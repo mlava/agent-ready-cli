@@ -7,14 +7,18 @@ It's a thin wrapper over the hosted [agent-ready.dev REST API](https://agent-rea
 ## Install
 
 ```bash
-npm install -g agent-ready
+npm install -g agent-ready-scanner
 ```
 
-Or run without installing:
+This installs the `agent-ready` command. Or run without installing:
 
 ```bash
-npx agent-ready scan https://example.com
+npx agent-ready-scanner scan https://example.com
 ```
+
+> **Why `agent-ready-scanner`?** The bare `agent-ready` name is blocked by
+> npm's package-name similarity policy (it collides with an unrelated
+> `agentready` package). The installed command is still `agent-ready`.
 
 Requires Node.js ≥ 20.10.
 
