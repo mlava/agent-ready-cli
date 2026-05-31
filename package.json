@@ -1,0 +1,55 @@
+{
+  "name": "agent-ready",
+  "version": "0.1.0",
+  "description": "Command-line client for Agent Ready — scan any URL for AI-readability against the Vercel Agent Readability Spec, the llmstxt.org standard, and agent-protocol manifests. Wraps the agent-ready.dev REST API.",
+  "license": "MIT",
+  "author": "Agent Ready",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mlava/agent-ready-cli.git"
+  },
+  "homepage": "https://agent-ready.dev",
+  "bugs": {
+    "url": "https://github.com/mlava/agent-ready-cli/issues"
+  },
+  "keywords": [
+    "cli",
+    "agent-readability",
+    "ai-search",
+    "llms-txt",
+    "agents-md",
+    "scanner",
+    "validator",
+    "vercel-spec",
+    "seo",
+    "nlweb"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "bin": {
+    "agent-ready": "dist/cli.mjs"
+  },
+  "files": [
+    "dist/cli.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node --experimental-strip-types src/bin.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@vitest/coverage-v8": "^2.1.9",
+    "esbuild": "^0.25.8",
+    "typescript": "^5.9.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^2.1.9"
+  }
+}
