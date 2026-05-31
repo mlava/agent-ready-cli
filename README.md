@@ -1,4 +1,4 @@
-# agent-ready-cli
+# agent-ready-scanner
 
 Command-line client for [Agent Ready](https://agent-ready.dev) — scan any URL for **AI-agent readability** against the Vercel Agent Readability Spec, the [llmstxt.org](https://llmstxt.org) standard, and agent-protocol manifests (MCP server cards, A2A, `agents.json`, `agent-permissions.json`, UCP, x402, NLWeb).
 
