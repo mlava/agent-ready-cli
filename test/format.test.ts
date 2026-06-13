@@ -61,6 +61,20 @@ describe("formatScan", () => {
     );
     expect(clean).toContain("All checks passed");
   });
+  it("shows the corpus benchmark when the response carries one", () => {
+    const benched = formatScan(
+      { ...scan, percentile: 80, corpusTotal: 1234 },
+      plain,
+    );
+    expect(benched).toContain("Better than 80% of 1,234 sites scanned");
+  });
+  it("omits the benchmark line on a thin corpus (null fields)", () => {
+    const thin = formatScan(
+      { ...scan, percentile: null, corpusTotal: null },
+      plain,
+    );
+    expect(thin).not.toContain("sites scanned");
+  });
 });
 
 describe("formatQueued", () => {

@@ -47,6 +47,22 @@ function scoreColor(score: number): keyof typeof CODES {
   return "red";
 }
 
+/**
+ * "Better than X% of N sites scanned" — mirrors agent-ready.dev's benchmarkLabel
+ * so the CLI quotes the same number the score card and widget do. Returns null
+ * when the corpus is too thin to quote (the API sends null fields).
+ */
+export function formatBenchmark(
+  percentile: number | null | undefined,
+  corpusTotal: number | null | undefined,
+): string | null {
+  if (percentile == null || corpusTotal == null) return null;
+  const n = corpusTotal.toLocaleString("en-GB");
+  if (percentile >= 100) return `Better than all ${n} sites scanned`;
+  if (percentile <= 0) return `Among the lowest of ${n} sites scanned`;
+  return `Better than ${percentile}% of ${n} sites scanned`;
+}
+
 /** Full scan result: scores, then every non-passing check grouped by section. */
 export function formatScan(scan: Scan, paint: Painter): string {
   const lines: string[] = [];
@@ -61,6 +77,10 @@ export function formatScan(scan: Scan, paint: Painter): string {
       `${scan.vercelScore}/100`,
     )}  ${paint("gray", scan.vercelRating.replace(/_/g, " "))}`,
   );
+  const benchmark = formatBenchmark(scan.percentile, scan.corpusTotal);
+  if (benchmark) {
+    lines.push(paint("gray", `  ${benchmark}`));
+  }
   lines.push(
     `  llms.txt             ${paint(
       scoreColor(scan.llmstxtScore),
