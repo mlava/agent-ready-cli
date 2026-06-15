@@ -6,6 +6,7 @@ import {
   listScans,
   postAsk,
   postScan,
+  scanMcp,
   type Config,
 } from "@/client";
 
@@ -106,6 +107,41 @@ describe("authenticated calls", () => {
       getScan({ ...config, apiKey: null }, "x"),
     ).rejects.toBeInstanceOf(ApiError);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("scanMcp (public)", () => {
+  it("posts the endpoint without requiring a key", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(
+        { scan: { id: "m1", mcpScore: 92 }, shareUrl: "/mcp-server-scanner/m1" },
+        201,
+      ),
+    );
+    const res = await scanMcp({ ...config, apiKey: null }, "https://mcp.x/mcp");
+    expect(res.scan.mcpScore).toBe(92);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://agent-ready.dev/api/v1/scan/mcp");
+    expect((init as RequestInit).method).toBe("POST");
+    expect(
+      (init!.headers as Record<string, string>).Authorization,
+    ).toBeUndefined();
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      endpoint: "https://mcp.x/mcp",
+    });
+  });
+
+  it("throws a typed ApiError on a blocked endpoint (400)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(
+        { error: { code: "invalid_request", message: "blocked" } },
+        400,
+      ),
+    );
+    await expect(scanMcp(config, "http://localhost/mcp")).rejects.toMatchObject({
+      code: "invalid_request",
+      status: 400,
+    });
   });
 });
 

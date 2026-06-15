@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { run, VERSION, type Api, type IO } from "@/cli";
-import type { Scan, ScanStatus } from "@/client";
+import type { McpScanResponse, Scan, ScanStatus } from "@/client";
 import { ApiError } from "@/client";
 
 function makeIO(color = false): { io: IO; out: string[]; err: string[] } {
@@ -38,6 +38,29 @@ function scan(status: ScanStatus, overrides: Partial<Scan> = {}): Scan {
   };
 }
 
+function mcpScan(status: "completed" | "failed" = "completed"): McpScanResponse {
+  return {
+    scan: {
+      id: "m1",
+      shareToken: "m1",
+      endpoint: "https://mcp.example.com/mcp",
+      host: "mcp.example.com",
+      status,
+      mcpScore: status === "failed" ? 0 : 92,
+      mcpRating: status === "failed" ? "needs_improvement" : "excellent",
+      serverName: "Example",
+      serverVersion: "1.0.0",
+      toolCount: 3,
+      resourceCount: 0,
+      promptCount: 0,
+      checks: [
+        { checkId: "M1", name: "Handshake", status: "pass", message: "ok", howToFix: null, details: {} },
+      ],
+    },
+    shareUrl: "/mcp-server-scanner/m1",
+  };
+}
+
 function fakeApi(overrides: Partial<Api> = {}): Api {
   return {
     postScan: vi.fn(async () => ({
@@ -49,6 +72,7 @@ function fakeApi(overrides: Partial<Api> = {}): Api {
     getScan: vi.fn(async () => scan("completed")),
     listScans: vi.fn(async () => ({ data: [] })),
     postAsk: vi.fn(async () => ({ _meta: {}, results: [] })),
+    scanMcp: vi.fn(async () => mcpScan()),
     ...overrides,
   };
 }
@@ -258,6 +282,49 @@ describe("ask", () => {
       expect.objectContaining({ q: "how is the score calculated" }),
     );
     expect(out.join("\n")).toContain("Scoring");
+  });
+});
+
+describe("mcp-scan", () => {
+  it("requires an endpoint", async () => {
+    const { io } = makeIO();
+    expect(await run(["mcp-scan"], ENV, io, fakeApi())).toBe(2);
+  });
+
+  it("scans an MCP server and prints the score (no key needed)", async () => {
+    const api = fakeApi({ scanMcp: vi.fn(async () => mcpScan()) });
+    const { io, out } = makeIO();
+    const code = await run(
+      ["mcp-scan", "https://mcp.example.com/mcp"],
+      {} as NodeJS.ProcessEnv,
+      io,
+      api,
+    );
+    expect(code).toBe(0);
+    expect(api.scanMcp).toHaveBeenCalledWith(
+      expect.anything(),
+      "https://mcp.example.com/mcp",
+    );
+    expect(out.join("\n")).toContain("92/100");
+  });
+
+  it("--json emits parseable JSON", async () => {
+    const api = fakeApi({ scanMcp: vi.fn(async () => mcpScan()) });
+    const { io, out } = makeIO();
+    const code = await run(
+      ["mcp-scan", "https://x/mcp", "--json"],
+      ENV,
+      io,
+      api,
+    );
+    expect(code).toBe(0);
+    expect(JSON.parse(out.join("\n")).scan.mcpScore).toBe(92);
+  });
+
+  it("returns 1 when the server can't be scanned", async () => {
+    const api = fakeApi({ scanMcp: vi.fn(async () => mcpScan("failed")) });
+    const { io } = makeIO();
+    expect(await run(["mcp-scan", "https://x/mcp"], ENV, io, api)).toBe(1);
   });
 });
 

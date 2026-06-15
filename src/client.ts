@@ -187,6 +187,27 @@ export interface ScanListResponse {
   nextCursor?: string;
 }
 
+export interface McpScan {
+  id: string;
+  shareToken: string;
+  endpoint: string;
+  host: string;
+  status: "completed" | "failed";
+  mcpScore: number;
+  mcpRating: VercelRating;
+  serverName: string | null;
+  serverVersion: string | null;
+  toolCount: number | null;
+  resourceCount: number | null;
+  promptCount: number | null;
+  checks: CheckResult[];
+}
+
+export interface McpScanResponse {
+  scan: McpScan;
+  shareUrl: string;
+}
+
 export interface StartScanBody {
   url: string;
   pageLimit?: number;
@@ -230,6 +251,67 @@ export async function listScans(
     path: `/api/v1/scans${query ? `?${query}` : ""}`,
     timeoutMs: config.getTimeoutMs,
   });
+}
+
+// POST /api/v1/scan/mcp is public (no API key required) — it connects to a live
+// MCP endpoint and grades it. Synchronous (no polling). Sends the key only if
+// present, like postAsk. Uses the longer scan timeout (the live handshake can
+// take several seconds).
+export async function scanMcp(
+  config: Config,
+  endpoint: string,
+): Promise<McpScanResponse> {
+  const url = `${config.baseUrl}/api/v1/scan/mcp`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ endpoint }),
+      signal: AbortSignal.timeout(config.scanTimeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new ApiError(
+        "timeout",
+        `Request to /api/v1/scan/mcp timed out after ${config.scanTimeoutMs}ms.`,
+      );
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(
+      "network_error",
+      `Network error calling /api/v1/scan/mcp: ${message}`,
+    );
+  }
+
+  const text = await res.text();
+  let payload: unknown = null;
+  if (text.length > 0) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      /* non-JSON body — surfaced via the error path below */
+    }
+  }
+
+  if (!res.ok) {
+    const detail =
+      payload && typeof payload === "object" && "error" in payload
+        ? (payload as { error: { code?: string; message?: string } }).error
+        : null;
+    const code = detail?.code ?? `http_${res.status}`;
+    const message =
+      (detail?.message ?? text) || `HTTP ${res.status} from /api/v1/scan/mcp`;
+    throw new ApiError(code, message, res.status);
+  }
+
+  return payload as McpScanResponse;
 }
 
 export interface AskOptions {

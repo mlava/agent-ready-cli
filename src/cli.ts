@@ -6,18 +6,20 @@ import {
   listScans,
   postAsk,
   postScan,
+  scanMcp,
   type Config,
   type Scan,
 } from "./client.js";
 import {
   formatAsk,
+  formatMcpScan,
   formatQueued,
   formatScan,
   formatScanList,
   makePainter,
 } from "./format.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.3.0";
 
 // Injection seam so tests can drive the CLI without real network or timers.
 export interface IO {
@@ -34,9 +36,10 @@ export interface Api {
   getScan: typeof getScan;
   listScans: typeof listScans;
   postAsk: typeof postAsk;
+  scanMcp: typeof scanMcp;
 }
 
-const realApi: Api = { postScan, getScan, listScans, postAsk };
+const realApi: Api = { postScan, getScan, listScans, postAsk, scanMcp };
 
 const HELP = `agent-ready — scan any URL for AI-agent readability (agent-ready.dev)
 
@@ -48,6 +51,7 @@ COMMANDS
   get <id>          Fetch a completed (or in-progress) scan by id
   list              List your recent scans
   ask <query...>    Natural-language search of Agent Ready's docs (no key needed)
+  mcp-scan <url>    Grade a live MCP server endpoint (no key needed)
 
 GLOBAL OPTIONS
   --json            Output raw JSON instead of formatted text
@@ -73,7 +77,7 @@ ASK OPTIONS
 
 AUTH
   scan, get, and list need a Pro API key — get one at
-  https://agent-ready.dev/dashboard/api-keys. ask is public.
+  https://agent-ready.dev/dashboard/api-keys. ask and mcp-scan are public.
 
 EXAMPLES
   agent-ready scan https://example.com
@@ -81,6 +85,7 @@ EXAMPLES
   agent-ready get V1StGXR8_Z
   agent-ready list --limit 5
   agent-ready ask "how is the score calculated?"
+  agent-ready mcp-scan https://mcp.example.com/mcp
 `;
 
 interface ParsedArgs {
@@ -181,6 +186,8 @@ export async function run(
         return await cmdList(values, env, io, api, json, paint);
       case "ask":
         return await cmdAsk(positionals.slice(1), values, env, io, api, json, paint);
+      case "mcp-scan":
+        return await cmdMcpScan(positionals.slice(1), values, env, io, api, json, paint);
       default:
         io.err(`Unknown command: ${command}`);
         io.err("Run `agent-ready --help` for usage.");
@@ -321,4 +328,26 @@ async function cmdAsk(
   if (json) io.out(JSON.stringify(payload, null, 2));
   else io.out(formatAsk(payload, paint));
   return 0;
+}
+
+async function cmdMcpScan(
+  args: string[],
+  values: ParsedArgs["values"],
+  env: NodeJS.ProcessEnv,
+  io: IO,
+  api: Api,
+  json: boolean,
+  paint: ReturnType<typeof makePainter>,
+): Promise<number> {
+  const endpoint = args[0];
+  if (!endpoint) {
+    io.err("Usage: agent-ready mcp-scan <endpoint-url>");
+    return 2;
+  }
+  const config = resolveConfig(env, values);
+  if (!json) io.err(paint("gray", `Scanning MCP server ${endpoint}…`));
+  const res = await api.scanMcp(config, endpoint);
+  if (json) io.out(JSON.stringify(res, null, 2));
+  else io.out(formatMcpScan(res, paint));
+  return res.scan.status === "failed" ? 1 : 0;
 }

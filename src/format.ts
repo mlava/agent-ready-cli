@@ -5,6 +5,7 @@
 import type {
   CheckResult,
   CheckStatus,
+  McpScanResponse,
   Scan,
   ScanSummary,
 } from "./client.js";
@@ -121,6 +122,59 @@ export function formatScan(scan: Scan, paint: Painter): string {
       paint("gray", `  ${totalIssues} check(s) need attention. `) +
         paint("cyan", `https://agent-ready.dev/scan/${scan.shareToken}`),
     );
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+/** Full MCP server scan: score, server metadata, then non-passing checks. */
+export function formatMcpScan(res: McpScanResponse, paint: Painter): string {
+  const scan = res.scan;
+  const lines: string[] = [];
+  lines.push("");
+  lines.push(
+    `${paint("bold", scan.endpoint)}  ${paint("gray", `(${scan.id})`)}`,
+  );
+  lines.push("");
+
+  if (scan.status === "failed") {
+    lines.push(`  ${paint("red", "Could not scan this server.")}`);
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  lines.push(
+    `  MCP score   ${paint(
+      scoreColor(scan.mcpScore),
+      `${scan.mcpScore}/100`,
+    )}  ${paint("gray", scan.mcpRating.replace(/_/g, " "))}`,
+  );
+  lines.push(
+    paint(
+      "gray",
+      `  ${scan.serverName ?? "unknown server"}${
+        scan.serverVersion ? ` v${scan.serverVersion}` : ""
+      } · ${scan.toolCount ?? 0} tools · ${scan.resourceCount ?? 0} resources · ${scan.promptCount ?? 0} prompts`,
+    ),
+  );
+
+  // Informational/not-applicable checks (e.g. auth, no-UI) are hidden from the
+  // issue list; show the graded checks that didn't pass.
+  const graded = scan.checks.filter((c) => c.details?.notApplicable !== true);
+  const failed = graded.filter((c) => c.status !== "pass");
+  if (failed.length > 0) {
+    lines.push("");
+    lines.push(
+      paint("bold", `  MCP server quality — ${failed.length} need attention`),
+    );
+    for (const c of failed) lines.push(formatCheckLine(c, paint));
+  }
+
+  lines.push("");
+  if (failed.length === 0) {
+    lines.push(paint("green", "  All checks passed. 🎉"));
+  } else {
+    lines.push(paint("cyan", `  https://agent-ready.dev${res.shareUrl}`));
   }
   lines.push("");
   return lines.join("\n");

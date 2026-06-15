@@ -85,6 +85,18 @@ agent-ready ask "what does check S4 do?" --type checks
 agent-ready ask "summarize the llms.txt requirements" --mode summarize
 ```
 
+### `mcp-scan <endpoint>`
+
+Connect to a live, remotely-hosted MCP server and grade its tools, resources,
+and prompts against MCP best practices — returns a 0–100 MCP quality score with
+a fix for each issue. Public — no API key. Great for CI (e.g. fail a build when
+your server scores below a threshold). Remote http(s) endpoints only.
+
+```bash
+agent-ready mcp-scan https://mcp.example.com/mcp
+agent-ready mcp-scan https://mcp.example.com/mcp --json
+```
+
 ## Global options
 
 | Option | Description |

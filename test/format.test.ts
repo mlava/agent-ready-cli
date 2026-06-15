@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   formatAsk,
+  formatMcpScan,
   formatQueued,
   formatScan,
   formatScanList,
   makePainter,
 } from "@/format";
-import type { Scan } from "@/client";
+import type { McpScanResponse, Scan } from "@/client";
 
 const plain = makePainter(false);
 const colored = makePainter(true);
@@ -108,6 +109,55 @@ describe("formatScanList", () => {
     );
     expect(t).toContain("88");
     expect(t).toContain("example.com");
+  });
+});
+
+describe("formatMcpScan", () => {
+  const base: McpScanResponse = {
+    scan: {
+      id: "m1",
+      shareToken: "m1",
+      endpoint: "https://mcp.example.com/mcp",
+      host: "mcp.example.com",
+      status: "completed",
+      mcpScore: 92,
+      mcpRating: "excellent",
+      serverName: "Example",
+      serverVersion: "1.0.0",
+      toolCount: 3,
+      resourceCount: 0,
+      promptCount: 0,
+      checks: [
+        { checkId: "M1", name: "Handshake", status: "pass", message: "", howToFix: null, details: {} },
+        { checkId: "M2", name: "Server metadata", status: "warn", message: "3/6 fields", howToFix: "add", details: {} },
+        { checkId: "M11", name: "Authentication", status: "warn", message: "none", howToFix: null, details: { notApplicable: true } },
+      ],
+    },
+    shareUrl: "/mcp-server-scanner/m1",
+  };
+
+  it("shows score, server meta, and non-passing graded checks (hides N/A)", () => {
+    const t = formatMcpScan(base, plain);
+    expect(t).toContain("92/100");
+    expect(t).toContain("Example v1.0.0");
+    expect(t).toContain("Server metadata");
+    expect(t).not.toContain("Authentication");
+  });
+
+  it("celebrates a clean scan", () => {
+    const clean = formatMcpScan(
+      { ...base, scan: { ...base.scan, checks: [base.scan.checks[0]!] } },
+      plain,
+    );
+    expect(clean).toContain("All checks passed");
+  });
+
+  it("renders a failed scan", () => {
+    const failed = formatMcpScan(
+      { ...base, scan: { ...base.scan, status: "failed" } },
+      plain,
+    );
+    expect(failed).toContain("Could not scan");
   });
 });
 
