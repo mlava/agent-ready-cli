@@ -97,6 +97,23 @@ agent-ready mcp-scan https://mcp.example.com/mcp
 agent-ready mcp-scan https://mcp.example.com/mcp --json
 ```
 
+### `validate-schema <url|->`
+
+Validate a page's JSON-LD structured data — schema lint plus the agent-coherence
+checks the first-party validators (validator.schema.org, Rich Results Test)
+don't do (freshness honesty, canonical/`.md` coherence, entity-name consistency,
+extraction signal). Pass a URL to fetch and validate, or `-` to read a JSON-LD
+string from stdin (paste mode — handy for validating JSON-LD an agent just
+wrote, no deploy needed). Public — no API key. Exits non-zero when any check
+fails, so it drops into CI.
+
+```bash
+agent-ready validate-schema https://example.com/product
+cat page.jsonld | agent-ready validate-schema -
+echo '{"@context":"https://schema.org","@type":"Product","name":"X"}' \
+  | agent-ready validate-schema - --json
+```
+
 ## Global options
 
 | Option | Description |

@@ -208,6 +208,32 @@ export interface McpScanResponse {
   shareUrl: string;
 }
 
+export type ValidateMode = "url" | "paste";
+export type ValidateVerdict =
+  | "agent-ready"
+  | "needs-work"
+  | "not-agent-readable";
+
+export interface ValidateSummary {
+  pass: number;
+  warn: number;
+  fail: number;
+  verdict: ValidateVerdict;
+}
+
+export interface ValidateResult {
+  mode: ValidateMode;
+  url: string | null;
+  checks: CheckResult[];
+  summary: ValidateSummary;
+}
+
+export interface ValidateInput {
+  /** Provide exactly one of `url` (fetch + validate) or `jsonld` (paste). */
+  url?: string;
+  jsonld?: string;
+}
+
 export interface StartScanBody {
   url: string;
   pageLimit?: number;
@@ -312,6 +338,67 @@ export async function scanMcp(
   }
 
   return payload as McpScanResponse;
+}
+
+// POST /api/v1/validate/structured-data is public (no API key required) — it
+// validates JSON-LD from a URL or a pasted body and returns the D-series
+// structured-data checks synchronously. Sends the key only if present, like
+// scanMcp / postAsk.
+export async function validateStructuredData(
+  config: Config,
+  input: ValidateInput,
+): Promise<ValidateResult> {
+  const path = "/api/v1/validate/structured-data";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${config.baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(config.getTimeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new ApiError(
+        "timeout",
+        `Request to ${path} timed out after ${config.getTimeoutMs}ms.`,
+      );
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(
+      "network_error",
+      `Network error calling ${path}: ${message}`,
+    );
+  }
+
+  const text = await res.text();
+  let payload: unknown = null;
+  if (text.length > 0) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      /* non-JSON body — surfaced via the error path below */
+    }
+  }
+
+  if (!res.ok) {
+    const detail =
+      payload && typeof payload === "object" && "error" in payload
+        ? (payload as { error: { code?: string; message?: string } }).error
+        : null;
+    const code = detail?.code ?? `http_${res.status}`;
+    const message =
+      (detail?.message ?? text) || `HTTP ${res.status} from ${path}`;
+    throw new ApiError(code, message, res.status);
+  }
+
+  return payload as ValidateResult;
 }
 
 export interface AskOptions {

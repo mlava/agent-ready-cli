@@ -8,6 +8,8 @@ import type {
   McpScanResponse,
   Scan,
   ScanSummary,
+  ValidateResult,
+  ValidateVerdict,
 } from "./client.js";
 
 const CODES = {
@@ -175,6 +177,42 @@ export function formatMcpScan(res: McpScanResponse, paint: Painter): string {
     lines.push(paint("green", "  All checks passed. 🎉"));
   } else {
     lines.push(paint("cyan", `  https://agent-ready.dev${res.shareUrl}`));
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+const VERDICT_COLOR: Record<ValidateVerdict, keyof typeof CODES> = {
+  "agent-ready": "green",
+  "needs-work": "yellow",
+  "not-agent-readable": "red",
+};
+
+/** Structured-data validation result: verdict, tallies, then non-passing checks. */
+export function formatValidate(result: ValidateResult, paint: Painter): string {
+  const lines: string[] = [];
+  const target =
+    result.mode === "url" ? (result.url ?? "(url)") : "pasted JSON-LD";
+  const { pass, warn, fail, verdict } = result.summary;
+  lines.push("");
+  lines.push(`${paint("bold", target)}  ${paint("gray", `(${result.mode})`)}`);
+  lines.push("");
+  lines.push(
+    `  ${paint(VERDICT_COLOR[verdict], verdict.replace(/-/g, " "))}  ${paint(
+      "gray",
+      `${pass} pass · ${warn} warn · ${fail} fail`,
+    )}`,
+  );
+
+  const issues = result.checks.filter((c) => c.status !== "pass");
+  lines.push("");
+  if (issues.length === 0) {
+    lines.push(paint("green", "  All structured-data checks passed. 🎉"));
+  } else {
+    lines.push(
+      paint("bold", `  Structured data — ${issues.length} need attention`),
+    );
+    for (const c of issues) lines.push(formatCheckLine(c, paint));
   }
   lines.push("");
   return lines.join("\n");

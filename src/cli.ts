@@ -7,6 +7,7 @@ import {
   postAsk,
   postScan,
   scanMcp,
+  validateStructuredData,
   type Config,
   type Scan,
 } from "./client.js";
@@ -16,10 +17,11 @@ import {
   formatQueued,
   formatScan,
   formatScanList,
+  formatValidate,
   makePainter,
 } from "./format.js";
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 // Injection seam so tests can drive the CLI without real network or timers.
 export interface IO {
@@ -29,6 +31,8 @@ export interface IO {
   color: boolean;
   /** Resolves after `ms`; tests pass an instant stub. */
   sleep: (ms: number) => Promise<void>;
+  /** Reads stdin to a string — used by `validate-schema -` (paste mode). */
+  readStdin?: () => Promise<string>;
 }
 
 export interface Api {
@@ -37,9 +41,17 @@ export interface Api {
   listScans: typeof listScans;
   postAsk: typeof postAsk;
   scanMcp: typeof scanMcp;
+  validateStructuredData: typeof validateStructuredData;
 }
 
-const realApi: Api = { postScan, getScan, listScans, postAsk, scanMcp };
+const realApi: Api = {
+  postScan,
+  getScan,
+  listScans,
+  postAsk,
+  scanMcp,
+  validateStructuredData,
+};
 
 const HELP = `agent-ready — scan any URL for AI-agent readability (agent-ready.dev)
 
@@ -52,6 +64,7 @@ COMMANDS
   list              List your recent scans
   ask <query...>    Natural-language search of Agent Ready's docs (no key needed)
   mcp-scan <url>    Grade a live MCP server endpoint (no key needed)
+  validate-schema <url|->  Validate JSON-LD structured data; - reads from stdin (no key needed)
 
 GLOBAL OPTIONS
   --json            Output raw JSON instead of formatted text
@@ -77,7 +90,8 @@ ASK OPTIONS
 
 AUTH
   scan, get, and list need a Pro API key — get one at
-  https://agent-ready.dev/dashboard/api-keys. ask and mcp-scan are public.
+  https://agent-ready.dev/dashboard/api-keys. ask, mcp-scan, and
+  validate-schema are public.
 
 EXAMPLES
   agent-ready scan https://example.com
@@ -86,6 +100,8 @@ EXAMPLES
   agent-ready list --limit 5
   agent-ready ask "how is the score calculated?"
   agent-ready mcp-scan https://mcp.example.com/mcp
+  agent-ready validate-schema https://example.com/product
+  cat page.jsonld | agent-ready validate-schema -
 `;
 
 interface ParsedArgs {
@@ -188,6 +204,8 @@ export async function run(
         return await cmdAsk(positionals.slice(1), values, env, io, api, json, paint);
       case "mcp-scan":
         return await cmdMcpScan(positionals.slice(1), values, env, io, api, json, paint);
+      case "validate-schema":
+        return await cmdValidateSchema(positionals.slice(1), values, env, io, api, json, paint);
       default:
         io.err(`Unknown command: ${command}`);
         io.err("Run `agent-ready --help` for usage.");
@@ -350,4 +368,44 @@ async function cmdMcpScan(
   if (json) io.out(JSON.stringify(res, null, 2));
   else io.out(formatMcpScan(res, paint));
   return res.scan.status === "failed" ? 1 : 0;
+}
+
+async function cmdValidateSchema(
+  args: string[],
+  values: ParsedArgs["values"],
+  env: NodeJS.ProcessEnv,
+  io: IO,
+  api: Api,
+  json: boolean,
+  paint: ReturnType<typeof makePainter>,
+): Promise<number> {
+  const target = args[0];
+  if (!target) {
+    io.err(
+      "Usage: agent-ready validate-schema <url | ->   (- reads JSON-LD from stdin)",
+    );
+    return 2;
+  }
+  const config = resolveConfig(env, values);
+
+  let input: { url?: string; jsonld?: string };
+  if (target === "-") {
+    if (!io.readStdin) {
+      io.err("Reading JSON-LD from stdin is not supported in this environment.");
+      return 2;
+    }
+    const jsonld = (await io.readStdin()).trim();
+    if (!jsonld) {
+      io.err("No JSON-LD received on stdin.");
+      return 2;
+    }
+    input = { jsonld };
+  } else {
+    input = { url: target };
+  }
+
+  const result = await api.validateStructuredData(config, input);
+  if (json) io.out(JSON.stringify(result, null, 2));
+  else io.out(formatValidate(result, paint));
+  return result.summary.fail > 0 ? 1 : 0;
 }

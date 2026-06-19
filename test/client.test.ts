@@ -7,6 +7,7 @@ import {
   postAsk,
   postScan,
   scanMcp,
+  validateStructuredData,
   type Config,
 } from "@/client";
 
@@ -142,6 +143,63 @@ describe("scanMcp (public)", () => {
       code: "invalid_request",
       status: 400,
     });
+  });
+});
+
+describe("validateStructuredData (public)", () => {
+  it("posts the body without requiring a key", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        mode: "paste",
+        url: null,
+        checks: [],
+        summary: { pass: 0, warn: 0, fail: 0, verdict: "agent-ready" },
+      }),
+    );
+    const res = await validateStructuredData(
+      { ...config, apiKey: null },
+      { jsonld: '{"@type":"Product"}' },
+    );
+    expect(res.summary.verdict).toBe("agent-ready");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      "https://agent-ready.dev/api/v1/validate/structured-data",
+    );
+    expect((init as RequestInit).method).toBe("POST");
+    expect(
+      (init!.headers as Record<string, string>).Authorization,
+    ).toBeUndefined();
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      jsonld: '{"@type":"Product"}',
+    });
+  });
+
+  it("sends the key when present", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        mode: "url",
+        url: "https://x/p",
+        checks: [],
+        summary: { pass: 0, warn: 0, fail: 0, verdict: "agent-ready" },
+      }),
+    );
+    await validateStructuredData(config, { url: "https://x/p" });
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer ar_live_test",
+    );
+  });
+
+  it("throws a typed ApiError on a 400", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(
+        { error: { code: "invalid_request", message: "bad" } },
+        400,
+      ),
+    );
+    await expect(
+      validateStructuredData(config, { url: "http://localhost" }),
+    ).rejects.toMatchObject({ code: "invalid_request", status: 400 });
   });
 });
 

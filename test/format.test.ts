@@ -5,9 +5,10 @@ import {
   formatQueued,
   formatScan,
   formatScanList,
+  formatValidate,
   makePainter,
 } from "@/format";
-import type { McpScanResponse, Scan } from "@/client";
+import type { McpScanResponse, Scan, ValidateResult } from "@/client";
 
 const plain = makePainter(false);
 const colored = makePainter(true);
@@ -173,5 +174,47 @@ describe("formatAsk", () => {
   it("shows the failure message when there are no results", () => {
     const t = formatAsk({ _meta: { message: "nothing found" }, results: [] }, plain);
     expect(t).toContain("nothing found");
+  });
+});
+
+describe("formatValidate", () => {
+  const base: ValidateResult = {
+    mode: "url",
+    url: "https://example.com/product",
+    checks: [
+      { checkId: "D1", name: "Valid JSON-LD", status: "pass", message: "ok", howToFix: null, details: {} },
+      { checkId: "D3", name: "Required fields", status: "fail", message: "missing name", howToFix: "add name", details: {} },
+    ],
+    summary: { pass: 1, warn: 0, fail: 1, verdict: "needs-work" },
+  };
+
+  it("renders the verdict, tallies, and non-passing checks", () => {
+    const t = formatValidate(base, plain);
+    expect(t).toContain("https://example.com/product");
+    expect(t).toContain("needs work");
+    expect(t).toContain("1 pass · 0 warn · 1 fail");
+    expect(t).toContain("D3");
+    expect(t).not.toContain("D1"); // passing checks are hidden
+  });
+
+  it("celebrates a clean paste result", () => {
+    const t = formatValidate(
+      {
+        mode: "paste",
+        url: null,
+        checks: [
+          { checkId: "D1", name: "Valid JSON-LD", status: "pass", message: "", howToFix: null, details: {} },
+        ],
+        summary: { pass: 1, warn: 0, fail: 0, verdict: "agent-ready" },
+      },
+      plain,
+    );
+    expect(t).toContain("pasted JSON-LD");
+    expect(t).toContain("All structured-data checks passed");
+  });
+
+  it("colourises the verdict", () => {
+    const t = formatValidate(base, colored);
+    expect(t).toContain("[33m"); // yellow for needs-work
   });
 });

@@ -1,9 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { run, VERSION, type Api, type IO } from "@/cli";
-import type { McpScanResponse, Scan, ScanStatus } from "@/client";
+import type {
+  McpScanResponse,
+  Scan,
+  ScanStatus,
+  ValidateResult,
+} from "@/client";
 import { ApiError } from "@/client";
 
-function makeIO(color = false): { io: IO; out: string[]; err: string[] } {
+function makeIO(
+  color = false,
+  stdin = "",
+): { io: IO; out: string[]; err: string[] } {
   const out: string[] = [];
   const err: string[] = [];
   const io: IO = {
@@ -11,6 +19,7 @@ function makeIO(color = false): { io: IO; out: string[]; err: string[] } {
     err: (s) => err.push(s),
     color,
     sleep: () => Promise.resolve(),
+    readStdin: () => Promise.resolve(stdin),
   };
   return { io, out, err };
 }
@@ -61,6 +70,21 @@ function mcpScan(status: "completed" | "failed" = "completed"): McpScanResponse 
   };
 }
 
+function validateResult(
+  overrides: Partial<ValidateResult> = {},
+): ValidateResult {
+  return {
+    mode: "url",
+    url: "https://example.com/product",
+    checks: [
+      { checkId: "D1", name: "Valid JSON-LD", status: "pass", message: "ok", howToFix: null, details: {} },
+      { checkId: "D3", name: "Required fields", status: "fail", message: "missing name", howToFix: "add name", details: {} },
+    ],
+    summary: { pass: 1, warn: 0, fail: 1, verdict: "needs-work" },
+    ...overrides,
+  };
+}
+
 function fakeApi(overrides: Partial<Api> = {}): Api {
   return {
     postScan: vi.fn(async () => ({
@@ -73,6 +97,7 @@ function fakeApi(overrides: Partial<Api> = {}): Api {
     listScans: vi.fn(async () => ({ data: [] })),
     postAsk: vi.fn(async () => ({ _meta: {}, results: [] })),
     scanMcp: vi.fn(async () => mcpScan()),
+    validateStructuredData: vi.fn(async () => validateResult()),
     ...overrides,
   };
 }
@@ -325,6 +350,69 @@ describe("mcp-scan", () => {
     const api = fakeApi({ scanMcp: vi.fn(async () => mcpScan("failed")) });
     const { io } = makeIO();
     expect(await run(["mcp-scan", "https://x/mcp"], ENV, io, api)).toBe(1);
+  });
+});
+
+describe("validate-schema", () => {
+  it("requires a target", async () => {
+    const { io } = makeIO();
+    expect(await run(["validate-schema"], ENV, io, fakeApi())).toBe(2);
+  });
+
+  it("validates a URL and prints the verdict (no key needed)", async () => {
+    const api = fakeApi();
+    const { io, out } = makeIO();
+    const code = await run(
+      ["validate-schema", "https://example.com/product"],
+      {} as NodeJS.ProcessEnv,
+      io,
+      api,
+    );
+    expect(code).toBe(1); // fixture has a failing check
+    expect(api.validateStructuredData).toHaveBeenCalledWith(expect.anything(), {
+      url: "https://example.com/product",
+    });
+    expect(out.join("\n")).toContain("needs work");
+  });
+
+  it("reads JSON-LD from stdin in paste mode (-)", async () => {
+    const api = fakeApi({
+      validateStructuredData: vi.fn(async () =>
+        validateResult({
+          mode: "paste",
+          url: null,
+          summary: { pass: 2, warn: 0, fail: 0, verdict: "agent-ready" },
+          checks: [
+            { checkId: "D1", name: "Valid JSON-LD", status: "pass", message: "ok", howToFix: null, details: {} },
+          ],
+        }),
+      ),
+    });
+    const { io, out } = makeIO(false, '{"@type":"Product","name":"X"}');
+    const code = await run(["validate-schema", "-"], ENV, io, api);
+    expect(code).toBe(0);
+    expect(api.validateStructuredData).toHaveBeenCalledWith(expect.anything(), {
+      jsonld: '{"@type":"Product","name":"X"}',
+    });
+    expect(out.join("\n")).toContain("agent ready");
+  });
+
+  it("errors when stdin paste is empty", async () => {
+    const { io } = makeIO(false, "   ");
+    expect(await run(["validate-schema", "-"], ENV, io, fakeApi())).toBe(2);
+  });
+
+  it("--json emits parseable JSON", async () => {
+    const api = fakeApi();
+    const { io, out } = makeIO();
+    const code = await run(
+      ["validate-schema", "https://x/p", "--json"],
+      ENV,
+      io,
+      api,
+    );
+    expect(JSON.parse(out.join("\n")).summary.verdict).toBe("needs-work");
+    expect(code).toBe(1);
   });
 });
 
