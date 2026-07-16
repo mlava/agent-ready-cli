@@ -24,6 +24,7 @@ const scan: Scan = {
   vercelScore: 72,
   vercelRating: "good",
   llmstxtScore: 40,
+  accessibilityScore: 88,
   siteChecks: [
     { checkId: "S1", name: "llms.txt exists", status: "pass", message: "", howToFix: null, details: {} },
     { checkId: "S2", name: "agents.md exists", status: "fail", message: "not found", howToFix: "add it", details: {} },
@@ -45,9 +46,11 @@ describe("makePainter", () => {
 
 describe("formatScan", () => {
   const text = formatScan(scan, plain);
-  it("shows both scores", () => {
+  it("shows the vercel, llms.txt, and accessibility scores", () => {
     expect(text).toContain("72/100");
     expect(text).toContain("40/100");
+    expect(text).toContain("Accessibility");
+    expect(text).toContain("88/100");
   });
   it("lists failing checks but not passing ones", () => {
     expect(text).toContain("agents.md exists");
@@ -102,6 +105,7 @@ describe("formatScanList", () => {
           vercelScore: 88,
           vercelRating: "excellent",
           llmstxtScore: 80,
+          accessibilityScore: 91,
           pagesScanned: 3,
           createdAt: "2026-05-31T12:30:00.000Z",
         },
@@ -110,6 +114,9 @@ describe("formatScanList", () => {
     );
     expect(t).toContain("88");
     expect(t).toContain("example.com");
+    // Accessibility column is present in the header and the row value.
+    expect(t).toContain("a11y");
+    expect(t).toContain("91");
   });
 });
 
