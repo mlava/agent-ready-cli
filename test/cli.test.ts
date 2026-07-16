@@ -36,6 +36,7 @@ function scan(status: ScanStatus, overrides: Partial<Scan> = {}): Scan {
     vercelScore: 72,
     vercelRating: "good",
     llmstxtScore: 60,
+    accessibilityScore: 88,
     siteChecks: [
       { checkId: "S1", name: "llms.txt exists", status: "pass", message: "", howToFix: null, details: {} },
       { checkId: "S2", name: "agents.md exists", status: "fail", message: "missing", howToFix: "add one", details: {} },
@@ -271,6 +272,7 @@ describe("list", () => {
             vercelScore: 80,
             vercelRating: "good" as const,
             llmstxtScore: 70,
+            accessibilityScore: 88,
             pagesScanned: 2,
             createdAt: "2026-05-31T00:00:00.000Z",
           },

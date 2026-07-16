@@ -90,6 +90,16 @@ export function formatScan(scan: Scan, paint: Painter): string {
       `${scan.llmstxtScore}/100`,
     )}`,
   );
+  // Accessibility sub-score (WCAG/layout, separate from the Vercel score).
+  // Nullable — only shown when accessibility checks actually ran.
+  if (scan.accessibilityScore !== null) {
+    lines.push(
+      `  Accessibility        ${paint(
+        scoreColor(scan.accessibilityScore),
+        `${scan.accessibilityScore}/100`,
+      )}`,
+    );
+  }
   lines.push(
     paint(
       "gray",
@@ -251,13 +261,21 @@ export function formatScanList(rows: ScanSummary[], paint: Painter): string {
       r.vercelScore === null
         ? paint("gray", " --")
         : paint(scoreColor(r.vercelScore), String(r.vercelScore).padStart(3));
+    const a11y =
+      r.accessibilityScore === null || r.accessibilityScore === undefined
+        ? paint("gray", " --")
+        : paint(
+            scoreColor(r.accessibilityScore),
+            String(r.accessibilityScore).padStart(3),
+          );
     const id = paint("gray", r.id.padEnd(12));
     const when = paint("dim", formatDate(r.createdAt));
-    return `  ${score}  ${id} ${r.domain}  ${when}`;
+    return `  ${score}  ${a11y}  ${id} ${r.domain}  ${when}`;
   });
-  return [paint("bold", "  score  id           domain  created"), ...lines].join(
-    "\n",
-  );
+  return [
+    paint("bold", "  score  a11y  id           domain  created"),
+    ...lines,
+  ].join("\n");
 }
 
 function formatDate(iso: string): string {

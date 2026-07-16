@@ -150,6 +150,8 @@ export interface Scan {
   vercelScore: number;
   vercelRating: VercelRating;
   llmstxtScore: number;
+  // Accessibility sub-score (A-series WCAG checks); null when none ran.
+  accessibilityScore: number | null;
   siteChecks: CheckResult[];
   llmstxtChecks: CheckResult[];
   pageResults: { url: string; checks: CheckResult[] }[];
@@ -176,6 +178,7 @@ export interface ScanSummary {
   vercelScore: number | null;
   vercelRating: VercelRating | null;
   llmstxtScore: number | null;
+  accessibilityScore: number | null;
   pagesScanned: number | null;
   createdAt: string;
   percentile?: number | null;
