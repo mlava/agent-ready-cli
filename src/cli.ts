@@ -4,6 +4,7 @@ import {
   createConfig,
   getScan,
   listScans,
+  postAnonScan,
   postAsk,
   postScan,
   scanMcp,
@@ -21,7 +22,7 @@ import {
   makePainter,
 } from "./format.js";
 
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 
 // Injection seam so tests can drive the CLI without real network or timers.
 export interface IO {
@@ -37,6 +38,7 @@ export interface IO {
 
 export interface Api {
   postScan: typeof postScan;
+  postAnonScan: typeof postAnonScan;
   getScan: typeof getScan;
   listScans: typeof listScans;
   postAsk: typeof postAsk;
@@ -46,6 +48,7 @@ export interface Api {
 
 const realApi: Api = {
   postScan,
+  postAnonScan,
   getScan,
   listScans,
   postAsk,
@@ -59,7 +62,7 @@ USAGE
   agent-ready <command> [options]
 
 COMMANDS
-  scan <url>        Start a scan and wait for the result
+  scan <url>        Scan a URL and print the result (works without a key)
   get <id>          Fetch a completed (or in-progress) scan by id
   list              List your recent scans
   ask <query...>    Natural-language search of Agent Ready's docs (no key needed)
@@ -89,9 +92,11 @@ ASK OPTIONS
   --type <itemType>         Restrict to: methodology | checks | specs | llms-txt | check
 
 AUTH
-  scan, get, and list need a Pro API key — get one at
-  https://agent-ready.dev/dashboard/api-keys. ask, mcp-scan, and
-  validate-schema are public.
+  scan works without a key on the free anonymous tier — 3 scans per 30
+  days per IP, 25-page depth. A Pro API key unlocks 50 scans/month,
+  250-page depth, scan history (get, list), and weekly monitoring:
+  https://agent-ready.dev/dashboard/api-keys
+  ask, mcp-scan, and validate-schema are public.
 
 EXAMPLES
   agent-ready scan https://example.com
@@ -237,6 +242,55 @@ async function cmdScan(
   }
   const config = resolveConfig(env, values);
   const pageLimit = intOption(values["page-limit"], "page-limit");
+
+  // Keyless fallback: the public /api/scan path runs the scan synchronously
+  // on the anonymous IP quota, so the first installed command still produces
+  // a real result. Pro-only options that only make sense on the async v1
+  // pipeline are rejected or noted rather than silently ignored.
+  if (!config.apiKey) {
+    if (values["no-wait"]) {
+      io.err(
+        "--no-wait needs an API key (anonymous scans run synchronously). " +
+          "Run without --no-wait, or set AGENT_READY_API_KEY.",
+      );
+      return 2;
+    }
+    if (pageLimit !== undefined) {
+      io.err(
+        paint(
+          "yellow",
+          "Note: --page-limit is ignored on the anonymous tier (fixed 25-page depth; Pro scans up to 250 pages).",
+        ),
+      );
+    }
+    if (!json) {
+      io.err(paint("gray", `Scanning ${url}… (anonymous free tier)`));
+    }
+    try {
+      const res = await api.postAnonScan(config, url);
+      if (json) io.out(JSON.stringify(res.scan, null, 2));
+      else {
+        io.out(formatScan(res.scan, paint));
+        io.out(
+          paint(
+            "gray",
+            "\nAnonymous tier: 3 scans per 30 days. Pro adds 50 scans/month, 250-page depth, scan history + weekly monitoring — https://agent-ready.dev/pricing",
+          ),
+        );
+      }
+      return 0;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        io.err(`Error (${err.code}): ${err.message}`);
+        io.err(
+          "Free anonymous quota reached. Get a Pro API key at " +
+            "https://agent-ready.dev/dashboard/api-keys or scan in the browser at https://agent-ready.dev",
+        );
+        return 1;
+      }
+      throw err;
+    }
+  }
 
   const queued = await api.postScan(config, { url, pageLimit });
 

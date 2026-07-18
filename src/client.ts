@@ -282,6 +282,78 @@ export async function listScans(
   });
 }
 
+export interface AnonScanResponse {
+  scan: Scan;
+  shareUrl: string;
+}
+
+// POST /api/scan is the public web-scan path: anonymous, IP-quota'd (3 scans
+// per 30 days), 25-page depth, and synchronous — the 201 JSON body carries the
+// finished scan. Keyless `scan` falls back to it so the first installed
+// command still produces a real result; a Pro key switches to the deeper
+// authenticated pipeline (POST /api/v1/scans + polling). Unlike the v1
+// routes, errors here are `{ error: string }`, with `resetAt` on the 429.
+export async function postAnonScan(
+  config: Config,
+  url: string,
+): Promise<AnonScanResponse> {
+  const path = "/api/scan";
+  let res: Response;
+  try {
+    res = await fetch(`${config.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(config.scanTimeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new ApiError(
+        "timeout",
+        `Request to ${path} timed out after ${config.scanTimeoutMs}ms.`,
+      );
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(
+      "network_error",
+      `Network error calling ${path}: ${message}`,
+    );
+  }
+
+  const text = await res.text();
+  let payload: unknown = null;
+  if (text.length > 0) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      /* non-JSON body — surfaced via the error path below */
+    }
+  }
+
+  if (!res.ok) {
+    const body =
+      payload && typeof payload === "object"
+        ? (payload as { error?: unknown; resetAt?: unknown })
+        : null;
+    let message =
+      typeof body?.error === "string" && body.error
+        ? body.error
+        : text || `HTTP ${res.status} from ${path}`;
+    if (res.status === 429) {
+      if (typeof body?.resetAt === "string") {
+        message += ` Quota resets ${body.resetAt.slice(0, 10)}.`;
+      }
+      throw new ApiError("quota_exhausted", message, res.status);
+    }
+    throw new ApiError(`http_${res.status}`, message, res.status);
+  }
+
+  return payload as AnonScanResponse;
+}
+
 // POST /api/v1/scan/mcp is public (no API key required) — it connects to a live
 // MCP endpoint and grades it. Synchronous (no polling). Sends the key only if
 // present, like postAsk. Uses the longer scan timeout (the live handshake can

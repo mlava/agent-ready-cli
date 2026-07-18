@@ -24,7 +24,15 @@ Requires Node.js ≥ 20.10.
 
 ## Authentication
 
-`scan`, `get`, and `list` require a **Pro API key**. Issue one from the
+`scan` works **without a key** on the free anonymous tier — 3 scans per 30
+days per IP, at 25-page depth:
+
+```bash
+npx agent-ready-scanner scan https://example.com   # no key, no account
+```
+
+A **Pro API key** unlocks 50 scans/month, 250-page depth, scan history
+(`get`, `list`), and weekly monitoring. Issue one from the
 [dashboard](https://agent-ready.dev/dashboard/api-keys), then either:
 
 ```bash
@@ -33,13 +41,15 @@ export AGENT_READY_API_KEY="ar_live_..."
 agent-ready scan https://example.com --api-key ar_live_...
 ```
 
-`ask` is public and needs no key.
+`ask`, `mcp-scan`, and `validate-schema` are public and need no key.
 
 ## Commands
 
 ### `scan <url>`
 
-Starts a scan, polls until it finishes, and prints a readability summary.
+Starts a scan, waits for it to finish, and prints a readability summary.
+Keyless runs use the anonymous free tier (synchronous, 25 pages); with a Pro
+key the scan runs on the deeper authenticated pipeline with polling.
 
 ```bash
 agent-ready scan https://example.com
@@ -129,7 +139,7 @@ echo '{"@context":"https://schema.org","@type":"Product","name":"X"}' \
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AGENT_READY_API_KEY` | — | Pro API key for `scan`/`get`/`list` |
+| `AGENT_READY_API_KEY` | — | Pro API key — required for `get`/`list`, optional for `scan` (keyless runs on the anonymous tier) |
 | `AGENT_READY_API_URL` | `https://agent-ready.dev` | API base URL |
 | `AGENT_READY_SCAN_TIMEOUT_MS` | `120000` | Overall scan wait budget |
 | `AGENT_READY_GET_TIMEOUT_MS` | `10000` | Per-request timeout |

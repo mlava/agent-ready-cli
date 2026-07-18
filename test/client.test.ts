@@ -4,6 +4,7 @@ import {
   createConfig,
   getScan,
   listScans,
+  postAnonScan,
   postAsk,
   postScan,
   scanMcp,
@@ -50,6 +51,67 @@ describe("createConfig", () => {
   it("falls back to defaults for non-numeric timeouts", () => {
     const c = createConfig({ AGENT_READY_GET_TIMEOUT_MS: "nope" } as NodeJS.ProcessEnv);
     expect(c.getTimeoutMs).toBeGreaterThan(0);
+  });
+});
+
+describe("postAnonScan", () => {
+  const anonConfig: Config = {
+    baseUrl: "https://agent-ready.dev",
+    apiKey: null,
+    scanTimeoutMs: 1000,
+    getTimeoutMs: 1000,
+  };
+
+  it("POSTs to the public /api/scan without an Authorization header", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(
+        { scan: { id: "anon1", shareToken: "anon1" }, shareUrl: "/scan/anon1" },
+        201,
+      ),
+    );
+    const res = await postAnonScan(anonConfig, "https://e.com");
+    expect(res.scan.id).toBe("anon1");
+    expect(res.shareUrl).toBe("/scan/anon1");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://agent-ready.dev/api/scan");
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      url: "https://e.com",
+    });
+  });
+
+  it("maps the 429 quota body to quota_exhausted with the reset date", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(
+        {
+          error: "Free scan limit reached (3 per 30 days).",
+          resetAt: "2026-08-01T07:00:00.000Z",
+          upgrade: true,
+        },
+        429,
+      ),
+    );
+    const err = await postAnonScan(anonConfig, "https://e.com").catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe("quota_exhausted");
+    expect((err as ApiError).status).toBe(429);
+    expect((err as ApiError).message).toContain("Free scan limit reached");
+    expect((err as ApiError).message).toContain("2026-08-01");
+  });
+
+  it("maps a string-error failure to an http_ code", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ error: "Scan failed. Please try again." }, 502),
+    );
+    const err = await postAnonScan(anonConfig, "https://e.com").catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe("http_502");
+    expect((err as ApiError).message).toBe("Scan failed. Please try again.");
   });
 });
 

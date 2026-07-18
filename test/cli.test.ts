@@ -94,6 +94,10 @@ function fakeApi(overrides: Partial<Api> = {}): Api {
       url: "https://example.com",
       pollUrl: "/api/v1/scans/abc123",
     })),
+    postAnonScan: vi.fn(async () => ({
+      scan: scan("completed"),
+      shareUrl: "/scan/abc123",
+    })),
     getScan: vi.fn(async () => scan("completed")),
     listScans: vi.fn(async () => ({ data: [] })),
     postAsk: vi.fn(async () => ({ _meta: {}, results: [] })),
@@ -234,6 +238,87 @@ describe("scan", () => {
     );
     expect(code).toBe(1);
     expect(err.join("\n")).toContain("page-limit");
+  });
+});
+
+describe("scan (anonymous, no API key)", () => {
+  const NO_KEY_ENV = {} as NodeJS.ProcessEnv;
+
+  it("falls back to the anonymous scan path and prints the upsell footer", async () => {
+    const api = fakeApi();
+    const { io, out } = makeIO();
+    const code = await run(["scan", "https://example.com"], NO_KEY_ENV, io, api);
+    expect(code).toBe(0);
+    expect(api.postAnonScan).toHaveBeenCalledWith(
+      expect.anything(),
+      "https://example.com",
+    );
+    expect(api.postScan).not.toHaveBeenCalled();
+    expect(api.getScan).not.toHaveBeenCalled();
+    const joined = out.join("\n");
+    expect(joined).toContain("72/100");
+    expect(joined).toContain("Anonymous tier: 3 scans per 30 days");
+    expect(joined).toContain("https://agent-ready.dev/pricing");
+  });
+
+  it("--json prints the raw scan without the footer", async () => {
+    const api = fakeApi();
+    const { io, out } = makeIO();
+    const code = await run(
+      ["scan", "https://example.com", "--json"],
+      NO_KEY_ENV,
+      io,
+      api,
+    );
+    expect(code).toBe(0);
+    const joined = out.join("\n");
+    expect(JSON.parse(joined).id).toBe("abc123");
+    expect(joined).not.toContain("Anonymous tier");
+  });
+
+  it("rejects --no-wait without a key", async () => {
+    const api = fakeApi();
+    const { io, err } = makeIO();
+    const code = await run(
+      ["scan", "https://example.com", "--no-wait"],
+      NO_KEY_ENV,
+      io,
+      api,
+    );
+    expect(code).toBe(2);
+    expect(api.postAnonScan).not.toHaveBeenCalled();
+    expect(err.join("\n")).toContain("--no-wait needs an API key");
+  });
+
+  it("notes that --page-limit is ignored on the anonymous tier", async () => {
+    const api = fakeApi();
+    const { io, err } = makeIO();
+    const code = await run(
+      ["scan", "https://example.com", "--page-limit", "100"],
+      NO_KEY_ENV,
+      io,
+      api,
+    );
+    expect(code).toBe(0);
+    expect(err.join("\n")).toContain("--page-limit is ignored");
+  });
+
+  it("surfaces quota exhaustion with the Pro pointer", async () => {
+    const api = fakeApi({
+      postAnonScan: vi.fn(async () => {
+        throw new ApiError(
+          "quota_exhausted",
+          "Free scan limit reached. Quota resets 2026-08-01.",
+          429,
+        );
+      }),
+    });
+    const { io, err } = makeIO();
+    const code = await run(["scan", "https://example.com"], NO_KEY_ENV, io, api);
+    expect(code).toBe(1);
+    const joined = err.join("\n");
+    expect(joined).toContain("quota_exhausted");
+    expect(joined).toContain("https://agent-ready.dev/dashboard/api-keys");
   });
 });
 
@@ -420,13 +505,16 @@ describe("validate-schema", () => {
 
 describe("error handling", () => {
   it("surfaces ApiError code and message, exit 1", async () => {
+    // `get` still requires a key — keyless `scan` now falls back to the
+    // anonymous path instead of erroring, so the generic ApiError surface
+    // is exercised through the history command.
     const api = fakeApi({
-      postScan: vi.fn(async () => {
+      getScan: vi.fn(async () => {
         throw new ApiError("missing_api_key", "No API key set.");
       }),
     });
     const { io, err } = makeIO();
-    const code = await run(["scan", "https://example.com"], {} as NodeJS.ProcessEnv, io, api);
+    const code = await run(["get", "abc123"], {} as NodeJS.ProcessEnv, io, api);
     expect(code).toBe(1);
     expect(err.join("\n")).toContain("missing_api_key");
   });
