@@ -305,6 +305,10 @@ export async function postAnonScan(
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        // Identifies this client so the server attributes the scan to `cli`
+        // (not `web`) for funnel analytics. Only read on the shared /api/scan
+        // endpoint; ignored everywhere else.
+        "X-Agent-Ready-Client": "cli",
       },
       body: JSON.stringify({ url }),
       signal: AbortSignal.timeout(config.scanTimeoutMs),
