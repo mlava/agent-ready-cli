@@ -80,6 +80,18 @@ describe("formatScan", () => {
     );
     expect(thin).not.toContain("sites scanned");
   });
+  it("always ends with the weekly-monitoring nudge", () => {
+    expect(text).toContain("Monitor this domain weekly");
+    expect(text).toContain(
+      "https://agent-ready.dev/pricing?utm_source=cli_cta",
+    );
+    // Present on a clean scan too — monitoring guards against regressions.
+    const clean = formatScan(
+      { ...scan, siteChecks: [scan.siteChecks[0]!], llmstxtChecks: [] },
+      plain,
+    );
+    expect(clean).toContain("Monitor this domain weekly");
+  });
 });
 
 describe("formatQueued", () => {
