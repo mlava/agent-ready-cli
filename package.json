@@ -1,6 +1,6 @@
 {
   "name": "agent-ready-scanner",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Command-line client for Agent Ready — scan any URL for AI-readability against the Vercel Agent Readability Spec, the llmstxt.org standard, and agent-protocol manifests. Wraps the agent-ready.dev REST API.",
   "license": "MIT",
   "author": "Agent Ready",

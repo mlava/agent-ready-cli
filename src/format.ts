@@ -135,6 +135,14 @@ export function formatScan(scan: Scan, paint: Painter): string {
         paint("cyan", `https://agent-ready.dev/scan/${scan.shareToken}`),
     );
   }
+  // Post-scan monitoring nudge — the conversion parity line the web result
+  // page and MCP summary text also carry. Human output only (--json skips
+  // formatScan entirely).
+  lines.push("");
+  lines.push(
+    paint("gray", "  Monitor this domain weekly — re-scans + score alerts: ") +
+      paint("cyan", "https://agent-ready.dev/pricing?utm_source=cli_cta"),
+  );
   lines.push("");
   return lines.join("\n");
 }
