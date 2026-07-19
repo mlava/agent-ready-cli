@@ -22,7 +22,7 @@ import {
   makePainter,
 } from "./format.js";
 
-export const VERSION = "0.5.0";
+export const VERSION = "0.5.1";
 
 // Injection seam so tests can drive the CLI without real network or timers.
 export interface IO {

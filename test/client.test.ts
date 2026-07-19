@@ -76,6 +76,8 @@ describe("postAnonScan", () => {
     expect(url).toBe("https://agent-ready.dev/api/scan");
     const headers = (init as RequestInit).headers as Record<string, string>;
     expect(headers.Authorization).toBeUndefined();
+    // Identifies the CLI so the server attributes the scan to `cli`, not `web`.
+    expect(headers["X-Agent-Ready-Client"]).toBe("cli");
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       url: "https://e.com",
     });
