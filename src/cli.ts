@@ -22,7 +22,7 @@ import {
   makePainter,
 } from "./format.js";
 
-export const VERSION = "0.5.1";
+export const VERSION = "0.6.0";
 
 // Injection seam so tests can drive the CLI without real network or timers.
 export interface IO {
@@ -270,11 +270,13 @@ async function cmdScan(
       const res = await api.postAnonScan(config, url);
       if (json) io.out(JSON.stringify(res.scan, null, 2));
       else {
-        io.out(formatScan(res.scan, paint));
+        io.out(formatScan(res.scan, paint, res.saveUrl));
+        // Quota facts, deliberately link-free: formatScan's save link is the
+        // only CTA on an anonymous scan, and a second URL here would split it.
         io.out(
           paint(
             "gray",
-            "\nAnonymous tier: 3 scans per 30 days. Pro adds 50 scans/month, 250-page depth, scan history + weekly monitoring — https://agent-ready.dev/pricing",
+            "\nAnonymous tier: 3 scans per 30 days. Pro adds 50 scans/month, 250-page depth, scan history and weekly monitoring.",
           ),
         );
       }

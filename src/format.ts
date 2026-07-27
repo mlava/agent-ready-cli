@@ -66,8 +66,20 @@ export function formatBenchmark(
   return `Better than ${percentile}% of ${n} sites scanned`;
 }
 
-/** Full scan result: scores, then every non-passing check grouped by section. */
-export function formatScan(scan: Scan, paint: Painter): string {
+/**
+ * Full scan result: scores, then every non-passing check grouped by section.
+ *
+ * `saveUrl` is the claim-bearing link POST /api/scan returns to keyless
+ * callers. When present the scan is anonymous and can still be attached to an
+ * account, so saving it replaces the pricing nudge as the footer CTA — one
+ * next step, not two competing links. Keyed (Pro) scans never get one: they
+ * already belong to an account, so monitoring is the real next step.
+ */
+export function formatScan(
+  scan: Scan,
+  paint: Painter,
+  saveUrl?: string | null,
+): string {
   const lines: string[] = [];
   lines.push("");
   lines.push(
@@ -129,20 +141,34 @@ export function formatScan(scan: Scan, paint: Painter): string {
   lines.push("");
   if (totalIssues === 0) {
     lines.push(paint("green", "  All checks passed. 🎉"));
+  } else if (saveUrl) {
+    // The save link already points at this report, with the ownership claim
+    // attached. Printing the bare report URL as well would offer a second copy
+    // that silently drops the claim — the one link a reader must not follow.
+    lines.push(paint("gray", `  ${totalIssues} check(s) need attention.`));
   } else {
     lines.push(
       paint("gray", `  ${totalIssues} check(s) need attention. `) +
         paint("cyan", `https://agent-ready.dev/scan/${scan.shareToken}`),
     );
   }
-  // Post-scan monitoring nudge — the conversion parity line the web result
-  // page and MCP summary text also carry. Human output only (--json skips
-  // formatScan entirely).
+  // Post-scan conversion nudge — the parity line the web result page and MCP
+  // summary text also carry. Human output only (--json skips formatScan
+  // entirely). Only what the free tier actually grants is promised here: score
+  // history and monitoring are both Pro-gated server-side, so naming them as
+  // reasons to create a free account would break the promise at signup.
   lines.push("");
-  lines.push(
-    paint("gray", "  Monitor this domain weekly — re-scans + score alerts: ") +
-      paint("cyan", "https://agent-ready.dev/pricing?utm_source=cli_cta"),
-  );
+  if (saveUrl) {
+    lines.push(
+      paint("gray", "  Save this scan to a free account — keeps it in your dashboard:"),
+    );
+    lines.push(paint("cyan", `  ${saveUrl}`));
+  } else {
+    lines.push(
+      paint("gray", "  Monitor this domain weekly — re-scans + score alerts: ") +
+        paint("cyan", "https://agent-ready.dev/pricing?utm_source=cli_cta"),
+    );
+  }
   lines.push("");
   return lines.join("\n");
 }

@@ -97,6 +97,8 @@ function fakeApi(overrides: Partial<Api> = {}): Api {
     postAnonScan: vi.fn(async () => ({
       scan: scan("completed"),
       shareUrl: "/scan/abc123",
+      saveUrl:
+        "https://agent-ready.dev/scan/abc123?claim=sig&utm_source=cli_cta&utm_medium=terminal",
     })),
     getScan: vi.fn(async () => scan("completed")),
     listScans: vi.fn(async () => ({ data: [] })),
@@ -258,7 +260,11 @@ describe("scan (anonymous, no API key)", () => {
     const joined = out.join("\n");
     expect(joined).toContain("72/100");
     expect(joined).toContain("Anonymous tier: 3 scans per 30 days");
-    expect(joined).toContain("https://agent-ready.dev/pricing");
+    // The save link is the anonymous scan's single CTA: the quota note states
+    // the Pro facts but carries no competing URL.
+    expect(joined).toContain("Save this scan to a free account");
+    expect(joined).toContain("utm_source=cli_cta&utm_medium=terminal");
+    expect(joined).not.toContain("https://agent-ready.dev/pricing");
   });
 
   it("--json prints the raw scan without the footer", async () => {
