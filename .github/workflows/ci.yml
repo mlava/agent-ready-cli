@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor package.json declares (engines >=20.10); 24 is what
+        # the main agent-ready repo pins (engines 24.x). A published CLI runs
+        # on whatever Node the user has, so both ends need to stay green —
+        # testing only one hides breakage at the other.
+        node-version: ["20", "24"]
+    name: test (node ${{ matrix.node-version }})
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # `files` in package.json ships dist/cli.mjs, and prepublishOnly rebuilds
+      # it — so a build that only fails on a clean checkout would surface at
+      # `npm publish` time, after the version is already chosen.
+      - name: Build (verify dist/cli.mjs builds)
+        run: npm run build
