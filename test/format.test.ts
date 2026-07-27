@@ -80,7 +80,7 @@ describe("formatScan", () => {
     );
     expect(thin).not.toContain("sites scanned");
   });
-  it("always ends with the weekly-monitoring nudge", () => {
+  it("ends with the weekly-monitoring nudge when the scan is already owned", () => {
     expect(text).toContain("Monitor this domain weekly");
     expect(text).toContain(
       "https://agent-ready.dev/pricing?utm_source=cli_cta",
@@ -91,6 +91,43 @@ describe("formatScan", () => {
       plain,
     );
     expect(clean).toContain("Monitor this domain weekly");
+  });
+
+  it("swaps the pricing nudge for the save link on an anonymous scan", () => {
+    const saveUrl =
+      "https://agent-ready.dev/scan/AbCdEf0123?claim=sig&utm_source=cli_cta&utm_medium=terminal";
+    const saved = formatScan(scan, plain, saveUrl);
+    expect(saved).toContain("Save this scan to a free account");
+    expect(saved).toContain(saveUrl);
+    // Replaced, not appended — one CTA, one link.
+    expect(saved).not.toContain("Monitor this domain weekly");
+    expect(saved).not.toContain("/pricing");
+    // And exactly one link of ours (the scanned site's own URL in the header
+    // doesn't count): the bare report URL is suppressed, because it is the
+    // same page minus the claim, so following it loses ownership.
+    expect(saved.match(/https:\/\/agent-ready\.dev/g)).toHaveLength(1);
+    expect(saved).toContain("check(s) need attention.");
+  });
+
+  it("promises only what a free account actually grants", () => {
+    // Score history and monitoring are both Pro-gated server-side (the API
+    // 403s a free user; the dashboard hides both panels). Offering them as
+    // reasons to sign up breaks the promise seconds later.
+    const saved = formatScan(scan, plain, "https://agent-ready.dev/scan/x?claim=s");
+    const cta = saved.slice(saved.indexOf("Save this scan"));
+    expect(cta).toContain("keeps it in your dashboard");
+    expect(cta).not.toMatch(/score history/i);
+    expect(cta).not.toMatch(/monitoring/i);
+  });
+
+  it("falls back to the pricing nudge when no claim link was issued", () => {
+    // The server omits saveUrl when it has no claim secret; an absent link
+    // must degrade to the old CTA, never to a footer with no next step.
+    for (const missing of [undefined, null]) {
+      const out = formatScan(scan, plain, missing);
+      expect(out).toContain("Monitor this domain weekly");
+      expect(out).not.toContain("Save this scan");
+    }
   });
 });
 

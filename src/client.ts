@@ -285,6 +285,10 @@ export async function listScans(
 export interface AnonScanResponse {
   scan: Scan;
   shareUrl: string;
+  // Claim-bearing link that attaches this anonymous scan to an account. Only
+  // returned to keyless callers, and only when the server has a claim secret —
+  // absent means "no conversion link available", not an error.
+  saveUrl?: string;
 }
 
 // POST /api/scan is the public web-scan path: anonymous, IP-quota'd (3 scans
