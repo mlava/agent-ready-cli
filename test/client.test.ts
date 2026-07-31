@@ -191,6 +191,11 @@ describe("scanMcp (public)", () => {
     expect(
       (init!.headers as Record<string, string>).Authorization,
     ).toBeUndefined();
+    // Without this the server sees an unidentified non-browser caller and
+    // records the scan as `http`, so CLI MCP scans can't be told from curl.
+    expect((init!.headers as Record<string, string>)["X-Agent-Ready-Client"]).toBe(
+      "cli",
+    );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       endpoint: "https://mcp.x/mcp",
     });
