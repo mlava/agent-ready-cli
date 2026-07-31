@@ -310,8 +310,8 @@ export async function postAnonScan(
         "Content-Type": "application/json",
         Accept: "application/json",
         // Identifies this client so the server attributes the scan to `cli`
-        // (not `web`) for funnel analytics. Only read on the shared /api/scan
-        // endpoint; ignored everywhere else.
+        // (not `web`) for funnel analytics. Read on the shared /api/scan
+        // endpoint and on /api/v1/scan/mcp; ignored everywhere else.
         "X-Agent-Ready-Client": "cli",
       },
       body: JSON.stringify({ url }),
@@ -374,6 +374,10 @@ export async function scanMcp(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    // Same attribution role as in postScan: without it this endpoint can only
+    // see an unidentified non-browser caller and records the scan as `http`,
+    // so CLI-originated MCP scans would be indistinguishable from curl.
+    "X-Agent-Ready-Client": "cli",
   };
   if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
 
