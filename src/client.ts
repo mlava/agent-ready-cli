@@ -1,3 +1,4 @@
+import { parseSanitized, stripTerminalEscapes } from "./sanitize.js";
 // Minimal REST client for the agent-ready.dev API. The CLI is a thin
 // argv→HTTPS wrapper: command handlers call into this client, which sends
 // Bearer-authenticated requests to the hosted REST endpoints. Mirrors the
@@ -94,11 +95,11 @@ async function call<T>(config: Config, opts: FetchOptions): Promise<T> {
     );
   }
 
-  const text = await res.text();
+  const text = stripTerminalEscapes(await res.text());
   let payload: unknown = null;
   if (text.length > 0) {
     try {
-      payload = JSON.parse(text);
+      payload = parseSanitized(text);
     } catch {
       // Non-JSON body — fall through with raw text in the error message
       // (rare; agent-ready always responds with JSON, but networks lie).
@@ -331,11 +332,11 @@ export async function postAnonScan(
     );
   }
 
-  const text = await res.text();
+  const text = stripTerminalEscapes(await res.text());
   let payload: unknown = null;
   if (text.length > 0) {
     try {
-      payload = JSON.parse(text);
+      payload = parseSanitized(text);
     } catch {
       /* non-JSON body — surfaced via the error path below */
     }
@@ -403,11 +404,11 @@ export async function scanMcp(
     );
   }
 
-  const text = await res.text();
+  const text = stripTerminalEscapes(await res.text());
   let payload: unknown = null;
   if (text.length > 0) {
     try {
-      payload = JSON.parse(text);
+      payload = parseSanitized(text);
     } catch {
       /* non-JSON body — surfaced via the error path below */
     }
@@ -464,11 +465,11 @@ export async function validateStructuredData(
     );
   }
 
-  const text = await res.text();
+  const text = stripTerminalEscapes(await res.text());
   let payload: unknown = null;
   if (text.length > 0) {
     try {
-      payload = JSON.parse(text);
+      payload = parseSanitized(text);
     } catch {
       /* non-JSON body — surfaced via the error path below */
     }
@@ -537,11 +538,11 @@ export async function postAsk(
     );
   }
 
-  const text = await res.text();
+  const text = stripTerminalEscapes(await res.text());
   let payload: unknown = null;
   if (text.length > 0) {
     try {
-      payload = JSON.parse(text);
+      payload = parseSanitized(text);
     } catch {
       // Non-JSON — fall through to the error path below.
     }
