@@ -7,7 +7,7 @@ const BEL = "\u0007";
 // The reported payload: OSC 52 clipboard write + CSI 2J clear screen.
 const OSC52 = `${ESC}]52;c;${Buffer.from("rm -rf ~/.ssh").toString("base64")}${BEL}`;
 const CLEAR = `${ESC}[2J`;
-const DANGEROUS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F‪-‮⁦-⁩]/;
+const DANGEROUS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202a-\u202e\u2066-\u2069]/;
 
 const config: Config = {
   baseUrl: "https://agent-ready.dev",
@@ -34,7 +34,7 @@ describe("stripTerminalEscapes", () => {
   });
 
   it("strips CR/DEL/NUL/bidi, keeps \\n \\t and normal Unicode", () => {
-    expect(stripTerminalEscapes("ok\rX\u007f\u0000‮\ty\nCafé ✓")).toBe("ok\nX\ty\nCafé ✓");
+    expect(stripTerminalEscapes("ok\rX\u007f\u0000\u202e\ty\nCafé ✓")).toBe("ok\nX\ty\nCafé ✓");
   });
 
   it("deep-sanitises payloads", () => {
